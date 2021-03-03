@@ -1,0 +1,144 @@
+ api_key<- "N2g2lTMTxzyxo286UkKlkpXEV"
+ api_secret<- "hGYsFp8XOEH5dTM16Yd4RCliJjXxuhJACaWl696wfzc5F1DuX8"
+ access_token<- "1234185953490587648-MpkRbq7WqGLNatoi67j4iLa39SXWTR"
+ access_token_secret<- "euzJnA3AxcmK5d2HZzbJFNAgMZKIimHcganUIK2VdHGn8"
+ setup_twitter_oauth(api_key, api_secret, access_token, access_token_secret)
+
+ tweets <- searchTwitter("@Flipkart", n=1000, lang="en")
+ tweets.df <- twListToDF(tweets)
+ sentence<- tweets.df$text
+ sentence<- tolower( sentence)
+
+
+ sentence<- gsub("[0-9]", "",  sentence)
+ sentence<- gsub("[[:punct:]]", "",  sentence)
+ sentence<- gsub("@\\w+", "",  sentence)
+ sentence<- gsub("http\\w+", "",  sentence)
+ sentence<- gsub("[ |\t]{2,}", "",  sentence)
+ sentence<- gsub("^ ", "",  sentence)
+ sentence<- gsub(" $", "",  sentence)
+ sentence<- gsub("[^\x01-\x7F]", "",  sentence)
+ str_replace_all( sentence,"[\r\n]","")
+ score.sentiment <- function(sentences, pos.words, neg.words, .progress='none')
+ {
+     require(plyr)
+     require(stringr)
+
+     scores <- laply(sentences, function(sentence, pos.words, neg.words){
+
+         word.list <- str_split(sentence, '\\s+')
+
+         words <- unlist(word.list)
+
+         pos.matches <- match(words, pos.words)
+         neg.matches <- match(words, neg.words)
+
+         pos.matches <- !is.na(pos.matches)
+         neg.matches <- !is.na(neg.matches)
+
+         score <- sum(pos.matches) - sum(neg.matches)
+         return(score)
+     }, pos.words, neg.words, .progress=.progress)
+     scores.df <- data.frame(score=scores, text=sentences)
+     return(scores.df)
+ }
+
+
+ pos.words = scan('path/positive words.txt', what='character', comment.char=';')
+ neg.words = scan('path/negative words.txt', what='character', comment.char=';')
+ pos.words=c(pos.words, 'Congrats', 'prizes', 'prize', 'thanks', 'thnx', 'Grt', 'gr8', 'plz', 'trending', 'recovering', 'brainstorm', 'leader', 'upgrade')
+ neg.words = c(neg.words, 'Fight', 'fighting', 'wtf', 'arrest', 'no', 'not')
+
+ Scores <- score.sentiment(tweets.df$text ,pos.words,neg.words,.progress='text')
+  
+ summary(Scores$score)
+   
+ hist(Scores$score,col ="yellow", main ="Score of tweets" , ylab = " Count of tweets")
+
+ qplot(Scores$score,xlab = "Score of tweets")
+
+ Scores$sentence = factor(rep ("flipkart"), length(tweets))
+
+ Scores$positive <- as.numeric(Scores$score >0)
+ Scores$negative <- as.numeric(Scores$score <0)
+ Scores$neutral <- as.numeric(Scores$score==0)
+ 
+ flipkart_website <- Scores
+
+
+ flipkart_website$polarity <- ifelse(flipkart_website$score >0,"positive",ifelse(flipkart_website$score < 0,"negative",ifelse(flipkart_website$score==0,"Neutral",0)))
+
+ final.result<- cbind(flipkart_website$polarity, sentence)
+
+
+    
+ df<- read.csv("Result.csv", stringsAsFactors = FALSE)
+  glimpse(df)
+ plot(as.factor(df$class))
+   title(main="Sentiment Analysis- Flipkart", xlab="Polarity", ylab="Frequency")
+
+
+  set.seed(1)
+  df <- df[sample(nrow(df)), ]
+  df <- df[sample(nrow(df)), ]
+  glimpse(df)
+  df$class <- as.factor(df$class)
+
+ corpus <- Corpus(VectorSource(df$text))
+  # Inspect the corpus
+  corpus
+  
+  inspect(corpus[1:3])
+  corpus.clean <- corpus %>%
+    tm_map(content_transformer(tolower)) %>% 
+    tm_map(removePunctuation) %>%
+    tm_map(removeNumbers) %>%
+    tm_map(removeWords, stopwords(kind="en")) %>%
+    tm_map(stripWhitespace)
+  
+
+  dtm <- DocumentTermMatrix(corpus.clean)
+  
+  inspect(dtm[40:50, 10:15])
+  df.train <- df[1:750,]
+  df.test <- df[751:1000,]
+  
+  dtm.train <- dtm[1:750,]
+  dtm.test <- dtm[751:1000,]
+  
+  corpus.clean.train <- corpus.clean[1:750]
+  corpus.clean.test <- corpus.clean[751:1000]
+
+  dim(dtm.train)
+  
+  fivefreq <- findFreqTerms(dtm.train, 5)
+  length((fivefreq))
+
+  dtm.train.nb <- DocumentTermMatrix(corpus.clean.train, control=list(dictionary = fivefreq))
+  
+  dim(dtm.train.nb)
+
+  
+  dtm.test.nb <- DocumentTermMatrix(corpus.clean.test, control=list(dictionary = fivefreq))
+  
+ dim(dtm.test.nb)
+  
+ 
+  convert_count <- function(x) {
+   y <- ifelse(x > 0, 1,0)
+    y <- factor(y, levels=c(0,1), labels=c("No", "Yes"))
+    y
+  }
+ trainNB <- apply(dtm.train.nb, 2, convert_count)
+  testNB <- apply(dtm.test.nb, 2, convert_count)
+
+
+  system.time( classifier <- naiveBayes(trainNB, df.train$class, laplace = 1) )
+   
+  system.time( pred <- predict(classifier, newdata=testNB) )
+
+  table("Predictions"= pred,  "Actual" = df.test$class )
+      
+  conf.mat <- confusionMatrix(pred, df.test$class)
+  
+  conf.mat
