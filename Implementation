@@ -1,0 +1,5 @@
+PART 2: Implementation:
+Step 1:  Visit http://apps.twitter.com/ and log in with your Twitter account.
+Step2: Click Create New App and fill in the details required.
+Step 3: Now, copy Consumer Key (API Key), Consumer Secret (API Secret), Access Token, Access Token Secret from the Keys and Access Token tab of your Twitter developer application. 
+Paste the keys in your code for further analysis; Twitter will generate a pin after valid authentication.
